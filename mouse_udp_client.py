@@ -23,15 +23,17 @@ while True:
 
         #4、接收服务器的响应(服务器回复的消息)
         recvData = conn_socket.recv(1024).decode('utf-8')
-        print(recvData,recvData[2:11] == "successed")
+        print(recvData,recvData == "successed")
+        print(recvData.strip())
 
-        if not recvData or recvData[2:11] != "successed":
+        if not recvData or recvData.strip() != "successed":
             print("连接失败，等待重连")
             time.sleep(3)
             continue
         break
     except:
         print("连接失败！")
+        time.sleep(3)
         continue
 
 print("连接成功！")
@@ -41,6 +43,9 @@ def on_press(key):
     if key == Key.esc:
         conn_socket.send(b"end")
         print("断开连接")
+    elif key.char == 'h':
+        conn_socket.send(b"hide")
+        print("隐藏鼠标")
     elif key == Key.space:
         conn_socket.send(b"4")
         print("发送点击")    
