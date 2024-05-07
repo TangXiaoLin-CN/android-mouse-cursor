@@ -12,6 +12,7 @@ import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.ImageView;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -166,29 +167,39 @@ public class MouseAccessibilityService extends AccessibilityService {
                                 System.out.println("-->" + msg);
                                 os.write(" ".getBytes()); //表示收到回复
                                 os.flush();
-                                try{
-                                    if(msg == "end"){
-                                        break;
-                                    }
-                                    if(msg == "hide")
-                                    {
-                                        new Handler(getMainLooper()).post(new Runnable() {
-                                            @Override
-                                            public void run() {
-                                                hideMouse();
-                                            }
-                                        });
-                                    }
-                                    final int event = Integer.parseInt(msg);
+                                if(msg.equals("end")){
+                                    break;
+                                }
+                                else if(msg.equals("hide")) {
                                     new Handler(getMainLooper()).post(new Runnable() {
                                         @Override
                                         public void run() {
-                                            onMouseMove(new MouseEvent(event));
+                                            setCursor(false);
                                         }
                                     });
-                                } catch (NumberFormatException e)
+                                }
+                                else if(msg.equals("show"))
                                 {
-                                    System.out.println("invalid input content!");
+                                    new Handler(getMainLooper()).post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            setCursor(true);
+                                        }
+                                    });
+                                }else
+                                {
+                                    try{
+                                        final int event = Integer.parseInt(msg);
+                                        new Handler(getMainLooper()).post(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                onMouseMove(new MouseEvent(event));
+                                            }
+                                        });
+                                    } catch (NumberFormatException e)
+                                    {
+                                        System.out.println("invalid input content!");
+                                    }
                                 }
                             }catch (SocketException e)
                             {
@@ -254,11 +265,19 @@ public class MouseAccessibilityService extends AccessibilityService {
         windowManager.updateViewLayout(cursorView, cursorLayout);
     }
 
-    public  void hideMouse()
+    public void setCursor(boolean state)
     {
-        System.out.println("hide");
-        cursorLayout.x = -999;
-        cursorLayout.y = -999;
+        View cursor = cursorView.findViewById(R.id.cursor);
+        if(state)
+        {
+            System.out.println("显示鼠标");
+            cursor.setVisibility(View.VISIBLE);
+        }
+        else
+        {
+            System.out.println("隐藏鼠标");
+            cursor.setVisibility(View.GONE);
+        }
         windowManager.updateViewLayout(cursorView, cursorLayout);
     }
 

@@ -43,22 +43,30 @@ def on_press(key):
     if key == Key.esc:
         conn_socket.send(b"end")
         print("断开连接")
-    elif key.char == 'h':
-        conn_socket.send(b"hide")
-        print("隐藏鼠标")
     elif key == Key.space:
         conn_socket.send(b"4")
         print("发送点击")    
     elif isinstance(key, KeyCode):
+        try:
+            keyChar = key.char
+        except:
+            print("无效操作")
+            return
         print("按键 {} 被按下".format(key.char))
-        if key.char == 'w':
+        if keyChar == 'w':
             conn_socket.send(b"0")
-        elif key.char == 'a':
+        elif keyChar == 'a':
             conn_socket.send(b"2")
-        elif key.char == 's':
+        elif keyChar == 's':
             conn_socket.send(b"1")
-        elif key.char == 'd':
+        elif keyChar == 'd':
             conn_socket.send(b"3")
+        elif key.char == 'h':
+            conn_socket.send(b"hide")
+            print("隐藏鼠标")
+        elif key.char == 'u':
+            conn_socket.send(b"show")
+            print("显示鼠标")    
         else:
             print("无效操作")
 
