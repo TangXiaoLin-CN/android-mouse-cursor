@@ -23,8 +23,12 @@ import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
 
 public class MouseAccessibilityService extends AccessibilityService {
+
+    static final int VMouseState_SHOW = 1;
+    static final int VMouseState_HIDE = 2;
 
     private static final String TAG = MouseAccessibilityService.class.getName();
 
@@ -154,9 +158,9 @@ public class MouseAccessibilityService extends AccessibilityService {
                         OutputStream os= client.getOutputStream();
 
                         //接受信息
-                        byte[] buffer = new byte[1024];
-                        int len = is.read(buffer);
-                        System.out.println("-->" + new String(buffer,0,len));
+                        byte[] bufferRaw = new byte[1024];
+                        int len = is.read(bufferRaw);
+                        System.out.println("-->" + new String(bufferRaw,0,len));
 
                         //回复连接成功
                         os.write("successed".getBytes());
@@ -165,42 +169,46 @@ public class MouseAccessibilityService extends AccessibilityService {
                         while(true)
                         {
                             try{
-                                len = is.read(buffer);
+                                len = is.read(bufferRaw);
                                 if (len == -1)
                                 {
                                     break;
                                 }
-                                String msg = new String(buffer,0,len).trim();
+                                String msg = new String(bufferRaw,0,len).trim();
                                 System.out.println("-->" + msg);
                                 os.write(" ".getBytes()); //表示收到回复
                                 os.flush();
                                 if(msg.equals("end")){
                                     break;
                                 }
-                                else if(msg.equals("hide")) {
-                                    new Handler(getMainLooper()).post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            setCursor(false);
-                                        }
-                                    });
-                                }
-                                else if(msg.equals("show"))
-                                {
-                                    new Handler(getMainLooper()).post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            setCursor(true);
-                                        }
-                                    });
-                                }else
+//                                else if(msg.equals("hide")) {
+//                                    new Handler(getMainLooper()).post(new Runnable() {
+//                                        @Override
+//                                        public void run() {
+//                                            setCursor(false);
+//                                        }
+//                                    });
+//                                }
+//                                else if(msg.equals("show"))
+//                                {
+//                                    new Handler(getMainLooper()).post(new Runnable() {
+//                                        @Override
+//                                        public void run() {
+//                                            setCursor(true);
+//                                        }
+//                                    });
+//                                }
+                                else
                                 {
                                     try{
-                                        final int event = Integer.parseInt(msg);
+                                        ByteBuffer buffer = ByteBuffer.wrap(bufferRaw);
+                                        final int action = buffer.get();
+                                        final int x = buffer.getShort();
+                                        final int y = buffer.getShort();
                                         new Handler(getMainLooper()).post(new Runnable() {
                                             @Override
                                             public void run() {
-                                                onMouseMove(new MouseEvent(event));
+                                                onMouseMove(new MouseEvent(action),x,y);
                                             }
                                         });
                                     } catch (NumberFormatException e)
@@ -249,26 +257,14 @@ public class MouseAccessibilityService extends AccessibilityService {
         nodeInfo.recycle();
     }
 
-    public void onMouseMove(MouseEvent event) {
-        switch (event.direction) {
-            case MouseEvent.MOVE_LEFT:
-                cursorLayout.x -= 10;
-                break;
-            case MouseEvent.MOVE_RIGHT:
-                cursorLayout.x += 10;
-                break;
-            case MouseEvent.MOVE_UP:
-                cursorLayout.y -= 10;
-                break;
-            case MouseEvent.MOVE_DOWN:
-                cursorLayout.y += 10;
-                break;
-            case MouseEvent.LEFT_CLICK:
-                click();
-                break;
-            default:
-                break;
-        }
+    public void onMouseMove(MouseEvent event,int x,int y) {
+        if (event.type == MouseEvent.SHOW)
+        {
+            setCursor(true);
+            cursorLayout.x = x;
+            cursorLayout.x = y;
+        }else
+            setCursor(false);
         windowManager.updateViewLayout(cursorView, cursorLayout);
     }
 

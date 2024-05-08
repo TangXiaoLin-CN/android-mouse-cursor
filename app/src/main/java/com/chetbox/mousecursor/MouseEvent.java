@@ -6,15 +6,12 @@ package com.chetbox.mousecursor;
 public class MouseEvent {
 
     public static final int
-            MOVE_UP = 0,
-            MOVE_DOWN = 1,
-            MOVE_LEFT = 2,
-            MOVE_RIGHT = 3,
-            LEFT_CLICK = 4;
+            SHOW = 1,
+            HIDE = 2;
 
-    public final int direction;
+    public final int type;
 
-    public MouseEvent(int direction) {
-        this.direction = direction;
+    public MouseEvent(int type) {
+        this.type = type;
     }
 }
