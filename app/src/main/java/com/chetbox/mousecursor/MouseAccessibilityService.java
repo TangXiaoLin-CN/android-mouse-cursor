@@ -3,8 +3,10 @@ package com.chetbox.mousecursor;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Intent;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Handler;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -159,17 +161,11 @@ public class MouseAccessibilityService extends AccessibilityService {
 
                         //接受信息
                         byte[] bufferRaw = new byte[1024];
-                        int len = is.read(bufferRaw);
-                        System.out.println("-->" + new String(bufferRaw,0,len));
-
-                        //回复连接成功
-                        os.write("successed".getBytes());
-                        os.flush();
 
                         while(true)
                         {
                             try{
-                                len = is.read(bufferRaw);
+                                int len = is.read(bufferRaw);
                                 if (len == -1)
                                 {
                                     break;
@@ -203,12 +199,15 @@ public class MouseAccessibilityService extends AccessibilityService {
                                     try{
                                         ByteBuffer buffer = ByteBuffer.wrap(bufferRaw);
                                         final int action = buffer.get();
-                                        final int x = buffer.getShort();
-                                        final int y = buffer.getShort();
+                                        final int xLocal = buffer.getShort();
+                                        final int yLocal = buffer.getShort();
+                                        final int xSize = buffer.getShort();
+                                        final int ySize = buffer.getShort();
+                                        final Point screen = GetScreenInfo();
                                         new Handler(getMainLooper()).post(new Runnable() {
                                             @Override
                                             public void run() {
-                                                onMouseMove(new MouseEvent(action),x,y);
+                                                onMouseMove(new MouseEvent(action),(int)(((float)xLocal / xSize) * screen.x), (int)(((float)yLocal / ySize) * screen.y));
                                             }
                                         });
                                     } catch (NumberFormatException e)
@@ -233,7 +232,6 @@ public class MouseAccessibilityService extends AccessibilityService {
                 }
             }
         }).start();
-
     }
 
     @Override
@@ -262,7 +260,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         {
             setCursor(true);
             cursorLayout.x = x;
-            cursorLayout.x = y;
+            cursorLayout.y = y;
         }else
             setCursor(false);
         windowManager.updateViewLayout(cursorView, cursorLayout);
@@ -288,6 +286,18 @@ public class MouseAccessibilityService extends AccessibilityService {
     public int onStartCommand(Intent intent, int flags, int startId) {
         windowManager.addView(cursorView, cursorLayout);
         return START_STICKY;
+    }
+
+    public Point GetScreenInfo()
+    {
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        WindowManager windowManager = (WindowManager) getBaseContext().getSystemService(getBaseContext().WINDOW_SERVICE);
+        windowManager.getDefaultDisplay().getMetrics(displayMetrics);
+
+        int width = displayMetrics.widthPixels; // 获取屏幕宽度
+        int height = displayMetrics.heightPixels; // 获取屏幕高度
+
+        return new Point(width,height);
     }
 
 }
