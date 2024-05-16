@@ -20,19 +20,11 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(this)) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getPackageName()));
-                startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
-            }
-        }
-
         if (Build.VERSION.SDK_INT >= 23) {
             if (!Settings.canDrawOverlays(this)) {
                 Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivityForResult(intent, 1);
+                startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
             } else {
                 //TODO 做你需要的事情
                 //8.0在后台需要调用新的方法
@@ -49,22 +41,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode == RESULT_OK) {
-            switch (requestCode) {
-                case OVERLAY_PERMISSION_REQ_CODE:
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        if (!Settings.canDrawOverlays(this)) {
-                            Toast.makeText(MainActivity.this, "权限授予失败，无法开启悬浮窗", Toast.LENGTH_SHORT).show();
-                        } else {
-                            //8.0在后台需要调用新的方法
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                this.startForegroundService(new Intent(this, MouseAccessibilityService.class));
-                            }else{
-                                startService(new Intent(this, MouseAccessibilityService.class));
-                            }
-                        }
-                    }
-                    break;
+        if (Settings.canDrawOverlays(this)) {
+            //8.0在后台需要调用新的方法
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                this.startForegroundService(new Intent(this, MouseAccessibilityService.class));
+            }else{
+                startService(new Intent(this, MouseAccessibilityService.class));
             }
         }
     }
