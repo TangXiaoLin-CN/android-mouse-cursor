@@ -1,17 +1,12 @@
 package com.chetbox.mousecursor;
 
 import android.accessibilityservice.AccessibilityService;
-import android.app.Notification;
-import android.app.Service;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
-import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
-import android.os.IBinder;
-import android.support.annotation.Nullable;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
@@ -33,16 +28,69 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 
-public class MouseAccessibilityService extends Service {
+public class MouseAccessibilityService extends AccessibilityService {
+
+    static final int VMouseState_SHOW = 1;
+    static final int VMouseState_HIDE = 2;
+
     private static final String TAG = MouseAccessibilityService.class.getName();
 
     private View cursorView;
     private LayoutParams cursorLayout;
     private WindowManager windowManager;
 
-    //ADD THIS
-    private IBinder mBinder = new LocalBinder();
-    public MouseAccessibilityService(){}
+    private static void logNodeHierachy(AccessibilityNodeInfo nodeInfo, int depth) {
+        Rect bounds = new Rect();
+        nodeInfo.getBoundsInScreen(bounds);
+
+        StringBuilder sb = new StringBuilder();
+        if (depth > 0) {
+            for (int i=0; i<depth; i++) {
+                sb.append("  ");
+            }
+            sb.append("\u2514 ");
+        }
+        sb.append(nodeInfo.getClassName());
+        sb.append(" (" + nodeInfo.getChildCount() +  ")");
+        sb.append(" " + bounds.toString());
+        if (nodeInfo.getText() != null) {
+            sb.append(" - \"" + nodeInfo.getText() + "\"");
+        }
+        Log.v(TAG, sb.toString());
+
+        for (int i=0; i<nodeInfo.getChildCount(); i++) {
+            AccessibilityNodeInfo childNode = nodeInfo.getChild(i);
+            if (childNode != null) {
+                logNodeHierachy(childNode, depth + 1);
+            }
+        }
+    }
+
+    private static AccessibilityNodeInfo findSmallestNodeAtPoint(AccessibilityNodeInfo sourceNode, int x, int y) {
+        Rect bounds = new Rect();
+        sourceNode.getBoundsInScreen(bounds);
+
+        if (!bounds.contains(x, y)) {
+            return null;
+        }
+
+        for (int i=0; i<sourceNode.getChildCount(); i++) {
+            AccessibilityNodeInfo nearestSmaller = findSmallestNodeAtPoint(sourceNode.getChild(i), x, y);
+            if (nearestSmaller != null) {
+                return nearestSmaller;
+            }
+        }
+        return sourceNode;
+    }
+
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+    }
+
+    @Override
+    public void onInterrupt() {
+        Log.d(TAG, "onInterrupt");
+    }
 
     @Override
     public void onCreate() {
@@ -62,10 +110,43 @@ public class MouseAccessibilityService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
         cursorLayout.gravity = Gravity.TOP | Gravity.LEFT;
+        if (Build.VERSION.SDK_INT >= 23)
+        {
+            cursorLayout.type = LayoutParams.TYPE_APPLICATION_OVERLAY;
+        }else
+        {
+            cursorLayout.type = LayoutParams.TYPE_SYSTEM_ALERT;
+        }
         cursorLayout.x = 0;
         cursorLayout.y = 0;
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+           ////UDP写法
+//        try {
+//            udpSocket = new DatagramSocket(9999);
+//            new Thread(new Runnable() {
+//                @Override
+//                public void run() {
+//                    byte[] buffer = new byte[1];
+//                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+//                    while (true) {
+//                        try {
+//                            udpSocket.receive(packet);
+//                            String message = new String(packet.getData()).trim();
+//                            final int event = Integer.parseInt(message);
+//                            new Handler(getMainLooper()).post(new Runnable() {
+//                                @Override
+//                                public void run() {
+//                                    onMouseMove(new MouseEvent(event));
+//                                }
+//                            });
+//                        } catch (IOException e) {}
+//                    }
+//                }
+//            }).start();
+//        } catch (SocketException e) {
+//            throw new RuntimeException(e);
+//        }
 
         new Thread(new Runnable() {
             @Override
@@ -104,6 +185,23 @@ public class MouseAccessibilityService extends Service {
                                 if(msg.equals("end")){
                                     break;
                                 }
+//                                else if(msg.equals("hide")) {
+//                                    new Handler(getMainLooper()).post(new Runnable() {
+//                                        @Override
+//                                        public void run() {
+//                                            setCursor(false);
+//                                        }
+//                                    });
+//                                }
+//                                else if(msg.equals("show"))
+//                                {
+//                                    new Handler(getMainLooper()).post(new Runnable() {
+//                                        @Override
+//                                        public void run() {
+//                                            setCursor(true);
+//                                        }
+//                                    });
+//                                }
                                 else
                                 {
                                     try{
@@ -148,9 +246,21 @@ public class MouseAccessibilityService extends Service {
     public void onDestroy() {
         super.onDestroy();
 
-//        if (windowManager != null && cursorView != null) {
-//            windowManager.removeView(cursorView);
-//        }
+        if (windowManager != null && cursorView != null) {
+            windowManager.removeView(cursorView);
+        }
+    }
+
+    private void click() {
+        Log.d(TAG, String.format("Click [%d, %d]", cursorLayout.x, cursorLayout.y));
+        AccessibilityNodeInfo nodeInfo = getRootInActiveWindow();
+        if (nodeInfo == null) return;
+        AccessibilityNodeInfo nearestNodeToMouse = findSmallestNodeAtPoint(nodeInfo, cursorLayout.x, cursorLayout.y + 50);
+        if (nearestNodeToMouse != null) {
+            logNodeHierachy(nearestNodeToMouse, 0);
+            nearestNodeToMouse.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        }
+        nodeInfo.recycle();
     }
 
     public void onMouseMove(MouseEvent event,int x,int y) {
@@ -198,44 +308,4 @@ public class MouseAccessibilityService extends Service {
         return new Point(width,height);
     }
 
-    //ADD THIS
-    @Override
-    public IBinder onBind(Intent intent) {
-        // Called when a client (MainActivity in case of this sample) comes to the foreground
-        // and binds with this service. The service should cease to be a foreground service
-        // when that happens.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            stopForeground(true);
-        }
-        return mBinder;
-    }
-
-    //ADD THIS
-    @Override
-    public void onRebind(Intent intent) {
-        // Called when a client (MainActivity in case of this sample) returns to the foreground
-        // and binds once again with this service. The service should cease to be a foreground
-        // service when that happens.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            stopForeground(true);
-        }
-        super.onRebind(intent);
-    }
-    //ADD THIS
-    @Override
-    public boolean onUnbind(Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForeground(13, new Notification());
-            return true; // Ensures onRebind() is called when a client re-binds.
-        }
-        return false;
-    }
-
-    //ADD THIS
-    public class LocalBinder extends Binder {
-        public MouseAccessibilityService getServerInstance() {
-            return MouseAccessibilityService.this;
-        }
-    }
 }
-
