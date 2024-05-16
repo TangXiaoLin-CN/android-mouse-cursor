@@ -9,6 +9,6 @@
         android:layout_width="20dp"
         android:layout_height="20dp"
         android:src="@mipmap/mouse_pointer"
-        android:visibility="gone"
+        android:visibility="visible"
         tools:visibility="visible" />
 </LinearLayout>
