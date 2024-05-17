@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
-import android.os.Build;
 import android.os.Handler;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -38,6 +37,11 @@ public class MouseAccessibilityService extends AccessibilityService {
     private View cursorView;
     private LayoutParams cursorLayout;
     private WindowManager windowManager;
+    private int width = 0;
+    private int height = 0;
+    private boolean isLandscape = false;
+    private boolean isHasCutHead = false;
+    private int cutHeadSize = 0;
 
     private static void logNodeHierachy(AccessibilityNodeInfo nodeInfo, int depth) {
         Rect bounds = new Rect();
@@ -96,6 +100,20 @@ public class MouseAccessibilityService extends AccessibilityService {
     public void onCreate() {
         super.onCreate();
 
+        StatusBarHelper.getInstance().setStatusBarHelperViewLayoutListener(new StatusBarHelper.StatusBarHelperViewLayoutListener() {
+            @Override
+            public void updateStatusBarHeightWhenGlobalLayout() {
+                Point cutSize = StatusBarHelper.getInstance().cutHeadSize();
+                Point size = StatusBarHelper.getInstance().getScreenSize();
+                isLandscape = cutSize.x > 0 ? true : false;
+                cutHeadSize = cutSize.x != 0 ? cutSize.x :cutSize.y;
+                width = size.x;
+                height = size.y;
+                isHasCutHead = isHasCutHead();
+            }
+        });
+        StatusBarHelper.getInstance().addStatusBarHelperView(getBaseContext());
+
         cursorView = View.inflate(getBaseContext(), R.layout.cursor, null);
         cursorLayout = new LayoutParams(
                 LayoutParams.WRAP_CONTENT,
@@ -110,43 +128,12 @@ public class MouseAccessibilityService extends AccessibilityService {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
         cursorLayout.gravity = Gravity.TOP | Gravity.LEFT;
-        if (Build.VERSION.SDK_INT >= 23)
-        {
-            cursorLayout.type = LayoutParams.TYPE_APPLICATION_OVERLAY;
-        }else
-        {
-            cursorLayout.type = LayoutParams.TYPE_SYSTEM_ALERT;
-        }
+        cursorLayout.alpha = 0.5f;
         cursorLayout.x = 0;
         cursorLayout.y = 0;
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-           ////UDP写法
-//        try {
-//            udpSocket = new DatagramSocket(9999);
-//            new Thread(new Runnable() {
-//                @Override
-//                public void run() {
-//                    byte[] buffer = new byte[1];
-//                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-//                    while (true) {
-//                        try {
-//                            udpSocket.receive(packet);
-//                            String message = new String(packet.getData()).trim();
-//                            final int event = Integer.parseInt(message);
-//                            new Handler(getMainLooper()).post(new Runnable() {
-//                                @Override
-//                                public void run() {
-//                                    onMouseMove(new MouseEvent(event));
-//                                }
-//                            });
-//                        } catch (IOException e) {}
-//                    }
-//                }
-//            }).start();
-//        } catch (SocketException e) {
-//            throw new RuntimeException(e);
-//        }
+
 
         new Thread(new Runnable() {
             @Override
@@ -185,23 +172,6 @@ public class MouseAccessibilityService extends AccessibilityService {
                                 if(msg.equals("end")){
                                     break;
                                 }
-//                                else if(msg.equals("hide")) {
-//                                    new Handler(getMainLooper()).post(new Runnable() {
-//                                        @Override
-//                                        public void run() {
-//                                            setCursor(false);
-//                                        }
-//                                    });
-//                                }
-//                                else if(msg.equals("show"))
-//                                {
-//                                    new Handler(getMainLooper()).post(new Runnable() {
-//                                        @Override
-//                                        public void run() {
-//                                            setCursor(true);
-//                                        }
-//                                    });
-//                                }
                                 else
                                 {
                                     try{
@@ -267,10 +237,22 @@ public class MouseAccessibilityService extends AccessibilityService {
         if (event.type == MouseEvent.SHOW)
         {
             setCursor(true);
-            cursorLayout.x = x;
-            cursorLayout.y = y;
         }else
+        {
             setCursor(false);
+        }
+        cursorLayout.x = x;
+        cursorLayout.y = y;
+//        if (isHasCutHead)
+//        {
+//            if (isLandscape)
+//            {
+//                cursorLayout.x -= cutHeadSize;
+//            }else
+//            {
+//                cursorLayout.y -= cutHeadSize;
+//            }
+//        }
         windowManager.updateViewLayout(cursorView, cursorLayout);
     }
 
@@ -298,14 +280,19 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     public Point GetScreenInfo()
     {
+        return new Point(width,height);
+    }
+
+    public boolean isHasCutHead()
+    {
         DisplayMetrics displayMetrics = new DisplayMetrics();
         WindowManager windowManager = (WindowManager) getBaseContext().getSystemService(getBaseContext().WINDOW_SERVICE);
         windowManager.getDefaultDisplay().getMetrics(displayMetrics);
 
-        int width = displayMetrics.widthPixels; // 获取屏幕宽度
-        int height = displayMetrics.heightPixels; // 获取屏幕高度
+        int pwidth = displayMetrics.widthPixels; // 获取屏幕宽度
+        int pheight = displayMetrics.heightPixels; // 获取屏幕高度
 
-        return new Point(width,height);
+        return pwidth != width || pheight != height;
     }
 
 }
