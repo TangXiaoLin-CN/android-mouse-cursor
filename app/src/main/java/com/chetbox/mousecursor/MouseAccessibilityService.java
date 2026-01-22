@@ -118,7 +118,9 @@ public class MouseAccessibilityService extends AccessibilityService {
         cursorLayout = new LayoutParams(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT,
-                LayoutParams.TYPE_SYSTEM_ERROR,
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
+                        ? LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : LayoutParams.TYPE_SYSTEM_ERROR,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE

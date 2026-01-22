@@ -20,7 +20,7 @@ public class StatusBarHelper {
 
     private StatusBarHelperViewLayoutListener mStatusBarHelperViewLayoutListener;
 
-    private Handler mStatusBarHandler = new Handler() {
+    private Handler mStatusBarHandler = new Handler(android.os.Looper.getMainLooper()) {
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
@@ -50,7 +50,9 @@ public class StatusBarHelper {
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
         lp.gravity = Gravity.LEFT | Gravity.TOP;
-        lp.type = WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY;
+        lp.type = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_SYSTEM_OVERLAY;
         lp.format = PixelFormat.TRANSLUCENT;
         lp.alpha = 0.1f;
         mStatusBarHelperView.getViewTreeObserver().addOnGlobalLayoutListener(mGlobalLayoutListener);
