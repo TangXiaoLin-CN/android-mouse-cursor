@@ -35,6 +35,7 @@ public class MouseAccessibilityService extends AccessibilityService {
     private static final String TAG = MouseAccessibilityService.class.getName();
 
     private View cursorView;
+    private View cursorImageView;  // 缓存光标ImageView，避免重复查找
     private LayoutParams cursorLayout;
     private WindowManager windowManager;
     private int width = 0;
@@ -42,6 +43,9 @@ public class MouseAccessibilityService extends AccessibilityService {
     private boolean isLandscape = false;
     private boolean isHasCutHead = false;
     private int cutHeadSize = 0;
+    private boolean isCursorVisible = false;
+    private boolean isCursorAdded = false;
+    private Handler mainHandler;
 
     private static void logNodeHierachy(AccessibilityNodeInfo nodeInfo, int depth) {
         Rect bounds = new Rect();
@@ -100,6 +104,9 @@ public class MouseAccessibilityService extends AccessibilityService {
     public void onCreate() {
         super.onCreate();
 
+        // 预先创建Handler，避免每次都创建
+        mainHandler = new Handler(getMainLooper());
+
         StatusBarHelper.getInstance().setStatusBarHelperViewLayoutListener(new StatusBarHelper.StatusBarHelperViewLayoutListener() {
             @Override
             public void updateStatusBarHeightWhenGlobalLayout() {
@@ -115,6 +122,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         StatusBarHelper.getInstance().addStatusBarHelperView(getBaseContext());
 
         cursorView = View.inflate(getBaseContext(), R.layout.cursor, null);
+        cursorImageView = cursorView.findViewById(R.id.cursor);  // 缓存引用
         cursorLayout = new LayoutParams(
                 LayoutParams.WRAP_CONTENT,
                 LayoutParams.WRAP_CONTENT,
@@ -127,10 +135,11 @@ public class MouseAccessibilityService extends AccessibilityService {
                         | WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
                         | WindowManager.LayoutParams.FLAG_FULLSCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 PixelFormat.TRANSLUCENT);
         cursorLayout.gravity = Gravity.TOP | Gravity.LEFT;
-        cursorLayout.alpha = 0.5f;
+        cursorLayout.alpha = 1.0f;  // 完全不透明
         cursorLayout.x = 0;
         cursorLayout.y = 0;
 
@@ -168,10 +177,16 @@ public class MouseAccessibilityService extends AccessibilityService {
                                     break;
                                 }
                                 String msg = new String(bufferRaw,0,len).trim();
-                                System.out.println("-->" + msg);
                                 os.write(" ".getBytes()); //表示收到回复
                                 os.flush();
                                 if(msg.equals("end")){
+                                    // 收到end命令，停止服务
+                                    mainHandler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            stopSelf();
+                                        }
+                                    });
                                     break;
                                 }
                                 else
@@ -184,10 +199,14 @@ public class MouseAccessibilityService extends AccessibilityService {
                                         final int xSize = buffer.getShort();
                                         final int ySize = buffer.getShort();
                                         final Point screen = GetScreenInfo();
-                                        new Handler(getMainLooper()).post(new Runnable() {
+                                        final int screenX = (int)(((float)xLocal / xSize) * screen.x);
+                                        final int screenY = (int)(((float)yLocal / ySize) * screen.y);
+
+                                        // 使用预先创建的Handler，减少对象创建
+                                        mainHandler.post(new Runnable() {
                                             @Override
                                             public void run() {
-                                                onMouseMove(new MouseEvent(action),(int)(((float)xLocal / xSize) * screen.x), (int)(((float)yLocal / ySize) * screen.y));
+                                                onMouseMove(new MouseEvent(action), screenX, screenY);
                                             }
                                         });
                                     } catch (NumberFormatException e)
@@ -197,7 +216,7 @@ public class MouseAccessibilityService extends AccessibilityService {
                                 }
                             }catch (SocketException e)
                             {
-                                System.out.println("i2222222222222222222");
+                                System.out.println("Socket closed");
                                 break;
                             }
                         }
@@ -218,8 +237,13 @@ public class MouseAccessibilityService extends AccessibilityService {
     public void onDestroy() {
         super.onDestroy();
 
-        if (windowManager != null && cursorView != null) {
-            windowManager.removeView(cursorView);
+        if (windowManager != null && cursorView != null && isCursorAdded) {
+            try {
+                windowManager.removeView(cursorView);
+                isCursorAdded = false;
+            } catch (Exception e) {
+                // 忽略异常
+            }
         }
     }
 
@@ -236,47 +260,43 @@ public class MouseAccessibilityService extends AccessibilityService {
     }
 
     public void onMouseMove(MouseEvent event,int x,int y) {
-        if (event.type == MouseEvent.SHOW)
-        {
-            setCursor(true);
-        }else
-        {
-            setCursor(false);
-        }
+        // 更新位置（无论是否可见都更新）
         cursorLayout.x = x;
         cursorLayout.y = y;
-//        if (isHasCutHead)
-//        {
-//            if (isLandscape)
-//            {
-//                cursorLayout.x -= cutHeadSize;
-//            }else
-//            {
-//                cursorLayout.y -= cutHeadSize;
-//            }
-//        }
-        windowManager.updateViewLayout(cursorView, cursorLayout);
+
+        // 始终更新布局位置
+        if (isCursorAdded) {
+            try {
+                windowManager.updateViewLayout(cursorView, cursorLayout);
+            } catch (Exception e) {
+                // 忽略异常
+            }
+        }
+
+        // 只切换可见性，不更新布局（使用缓存的引用）
+        boolean shouldShow = (event.type == MouseEvent.SHOW);
+        if (shouldShow != isCursorVisible) {
+            cursorImageView.setVisibility(shouldShow ? View.VISIBLE : View.INVISIBLE);
+            isCursorVisible = shouldShow;
+        }
     }
 
     public void setCursor(boolean state)
     {
-        View cursor = cursorView.findViewById(R.id.cursor);
-        if(state)
-        {
-            System.out.println("显示鼠标");
-            cursor.setVisibility(View.VISIBLE);
-        }
-        else
-        {
-            System.out.println("隐藏鼠标");
-            cursor.setVisibility(View.GONE);
-        }
-        windowManager.updateViewLayout(cursorView, cursorLayout);
+        cursorImageView.setVisibility(state ? View.VISIBLE : View.INVISIBLE);
+        isCursorVisible = state;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        windowManager.addView(cursorView, cursorLayout);
+        if (!isCursorAdded && windowManager != null && cursorView != null) {
+            try {
+                windowManager.addView(cursorView, cursorLayout);
+                isCursorAdded = true;
+            } catch (Exception e) {
+                // 忽略异常
+            }
+        }
         return START_STICKY;
     }
 
